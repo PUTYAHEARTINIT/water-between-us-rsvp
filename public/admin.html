@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RSVP Admin Dashboard</title>
+<style>
+  :root{
+    --ink: #0A0907;
+    --panel: #15120D;
+    --gold: #CDA449;
+    --cream: #F2ECDD;
+    --mist: #9C9382;
+    --line: #3C311D;
+  }
+
+  *{ box-sizing: border-box; }
+
+  body{
+    margin:0;
+    padding: 20px;
+    background: radial-gradient(120% 70% at 50% -5%, #221A0E 0%, var(--ink) 55%, #050403 100%);
+    color: var(--cream);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh;
+  }
+
+  .container{
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  h1{
+    font-family: 'Anton', sans-serif;
+    color: var(--gold);
+    text-align: center;
+    margin-bottom: 10px;
+    font-size: 42px;
+  }
+
+  .stats{
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+  }
+
+  .stat-card{
+    background: rgba(205,164,73,0.08);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px 30px;
+    text-align: center;
+  }
+
+  .stat-card .number{
+    font-size: 36px;
+    font-weight: 600;
+    color: var(--gold);
+    margin: 0;
+  }
+
+  .stat-card .label{
+    font-size: 12px;
+    color: var(--mist);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin: 5px 0 0;
+  }
+
+  .actions{
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+
+  .btn{
+    background: var(--gold);
+    color: var(--ink);
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .btn:hover{
+    background: #E3C469;
+  }
+
+  table{
+    width: 100%;
+    border-collapse: collapse;
+    background: rgba(21,18,13,0.5);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+
+  thead{
+    background: rgba(205,164,73,0.15);
+  }
+
+  th{
+    padding: 16px;
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--gold);
+    font-weight: 600;
+    border-bottom: 1px solid var(--line);
+  }
+
+  td{
+    padding: 16px;
+    border-bottom: 1px solid rgba(60,49,29,0.3);
+    color: var(--cream);
+  }
+
+  tr:last-child td{
+    border-bottom: none;
+  }
+
+  tbody tr:hover{
+    background: rgba(205,164,73,0.05);
+  }
+
+  .email{
+    color: var(--gold);
+    font-weight: 500;
+  }
+
+  .date{
+    color: var(--mist);
+    font-size: 13px;
+  }
+
+  .loading{
+    text-align: center;
+    padding: 40px;
+    color: var(--mist);
+  }
+
+  .empty{
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--mist);
+  }
+
+  @media (max-width: 768px){
+    table{
+      font-size: 14px;
+    }
+    th, td{
+      padding: 12px 8px;
+    }
+    .btn{
+      padding: 10px 16px;
+      font-size: 12px;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Water Between Us — RSVPs</h1>
+
+  <div class="stats">
+    <div class="stat-card">
+      <p class="number" id="totalRSVPs">0</p>
+      <p class="label">Total RSVPs</p>
+    </div>
+    <div class="stat-card">
+      <p class="number" id="totalGuests">0</p>
+      <p class="label">Total Guests</p>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn" onclick="downloadCSV()">Download CSV</button>
+    <button class="btn" onclick="copyEmails()">Copy All Emails</button>
+    <button class="btn" onclick="loadRSVPs()">Refresh</button>
+  </div>
+
+  <div id="tableContainer">
+    <div class="loading">Loading RSVPs...</div>
+  </div>
+</div>
+
+<script>
+let rsvpsData = [];
+
+async function loadRSVPs(){
+  try{
+    const response = await fetch('/api/admin/emails');
+    if(!response.ok) throw new Error('Failed to load RSVPs');
+
+    rsvpsData = await response.json();
+    renderTable();
+    updateStats();
+  }catch(error){
+    document.getElementById('tableContainer').innerHTML = '<div class="empty">Failed to load RSVPs. Please try again.</div>';
+  }
+}
+
+function updateStats(){
+  const totalRSVPs = rsvpsData.length;
+  const totalGuests = rsvpsData.reduce((sum, rsvp) => sum + (Number(rsvp.partySize) || 1), 0);
+
+  document.getElementById('totalRSVPs').textContent = totalRSVPs;
+  document.getElementById('totalGuests').textContent = totalGuests;
+}
+
+function renderTable(){
+  const container = document.getElementById('tableContainer');
+
+  if(rsvpsData.length === 0){
+    container.innerHTML = '<div class="empty">No RSVPs yet. Be patient!</div>';
+    return;
+  }
+
+  const sorted = [...rsvpsData].sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+
+  const html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Party Size</th>
+          <th>Invited By</th>
+          <th>Submitted</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${sorted.map(rsvp => `
+          <tr>
+            <td>${escapeHtml(rsvp.name)}</td>
+            <td class="email">${escapeHtml(rsvp.email)}</td>
+            <td>${rsvp.partySize || 1}</td>
+            <td>${escapeHtml(rsvp.invitedBy)}</td>
+            <td class="date">${formatDate(rsvp.submittedAt)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+
+  container.innerHTML = html;
+}
+
+function escapeHtml(text){
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function formatDate(isoString){
+  const date = new Date(isoString);
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function downloadCSV(){
+  if(rsvpsData.length === 0){
+    alert('No RSVPs to download');
+    return;
+  }
+
+  const headers = ['Name', 'Email', 'Party Size', 'Invited By', 'Submitted At'];
+  const rows = rsvpsData.map(rsvp => [
+    rsvp.name,
+    rsvp.email,
+    rsvp.partySize || 1,
+    rsvp.invitedBy,
+    rsvp.submittedAt
+  ]);
+
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+  ].join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `water-between-us-rsvps-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function copyEmails(){
+  if(rsvpsData.length === 0){
+    alert('No emails to copy');
+    return;
+  }
+
+  const emails = rsvpsData.map(rsvp => rsvp.email).join(', ');
+  navigator.clipboard.writeText(emails).then(() => {
+    alert(`Copied ${rsvpsData.length} email addresses to clipboard!`);
+  }).catch(() => {
+    alert('Failed to copy emails. Please try again.');
+  });
+}
+
+loadRSVPs();
+</script>
+</body>
+</html>
