@@ -3,3 +3,4 @@ rsvps.json
 .env
 .DS_Store
 *.log
+.vercel
